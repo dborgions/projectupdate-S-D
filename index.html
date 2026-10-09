@@ -58,9 +58,10 @@
   .btn-ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
   .btn-ghost:hover{border-color:#cdd6e2}
 
-  .group{margin-bottom:24px}
-  .group-h{display:flex;align-items:center;gap:9px;margin:0 0 11px 2px;font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-  .group-h .count{color:var(--faint);font-weight:500;letter-spacing:0;text-transform:none}
+  .group{margin-bottom:26px}
+  .group-h{position:sticky;top:8px;z-index:5;display:flex;align-items:center;gap:11px;margin:0 0 13px;padding:11px 15px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:11px;font-size:15.5px;font-weight:700;color:var(--ink);letter-spacing:-.1px;box-shadow:var(--shadow)}
+  .group-h .count{color:var(--faint);font-weight:500;font-size:13px}
+  .group-h .dot{width:9px;height:9px}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 17px;margin-bottom:11px;box-shadow:var(--shadow);transition:border-color .12s}
   .card:hover{border-color:#d6deea}
@@ -181,6 +182,7 @@
       <input id="search" type="text" placeholder="Zoek op project of toelichting...">
     </div>
     <select id="portFilter"><option value="">Alle portefeuilles</option></select>
+    <select id="groupBy"><option value="fase">Groeperen op fase</option><option value="port">Groeperen op portefeuille</option></select>
     <label class="recent"><input type="checkbox" id="recentChk">Recent gewijzigd</label>
     <button class="btn btn-primary" id="addBtn">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
@@ -335,6 +337,7 @@ function renderBoard(){
   const q=document.getElementById('search').value.toLowerCase();
   const pf=document.getElementById('portFilter').value;
   const recentOnly=document.getElementById('recentChk').checked;
+  const groupBy=document.getElementById('groupBy').value;
   let list=projects.filter(p=>{
     if(statusFilter==='onhold'){if(!p.on_hold)return false;}
     else if(statusFilter&&p.fase!==statusFilter)return false;
@@ -348,14 +351,22 @@ function renderBoard(){
 
   const sortFn=(a,b)=>new Date(b.updated_at)-new Date(a.updated_at);
   let html='';
-  if(statusFilter==='onhold'){
+  if(groupBy==='port'){
+    const present=[...new Set(list.map(p=>p.portefeuille))];
+    const ordered=[...PORTEFEUILLES.filter(x=>present.includes(x)),...present.filter(x=>!PORTEFEUILLES.includes(x)).sort()];
+    ordered.forEach(port=>{
+      const grp=list.filter(p=>p.portefeuille===port).sort(sortFn);
+      if(!grp.length)return;
+      html+=`<div class="group">${groupHeader(port,grp.length,'--brand')}${cardsHtml(grp)}</div>`;
+    });
+  }else if(statusFilter==='onhold'){
     html+=cardsHtml(list.sort(sortFn));
   }else{
     ORDER.forEach(k=>{
       const grp=list.filter(p=>p.fase===k).sort(sortFn);
       if(!grp.length)return;
       const s=FASES[k];
-      html+=`<div class="group"><div class="group-h"><span class="dot" style="background:var(${s.c})"></span>${s.label} <span class="count">(${grp.length})</span></div>${cardsHtml(grp)}</div>`;
+      html+=`<div class="group">${groupHeader(s.label,grp.length,s.c)}${cardsHtml(grp)}</div>`;
     });
   }
   board.innerHTML=html;
@@ -388,6 +399,9 @@ function cardsHtml(arr){
   }).join('');
 }
 
+function groupHeader(label,count,colorVar){
+  return `<div class="group-h" style="border-left-color:var(${colorVar})"><span class="dot" style="background:var(${colorVar})"></span>${esc(label)} <span class="count">(${count})</span></div>`;
+}
 function chev(){return '<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>';}
 function curSummary(steps){
   const done=steps.filter(s=>s.status==='done').length, total=steps.length;
@@ -610,6 +624,7 @@ let demoData=(function(){
   document.getElementById('search').oninput=renderBoard;
   document.getElementById('portFilter').onchange=renderBoard;
   document.getElementById('recentChk').onchange=renderBoard;
+  document.getElementById('groupBy').onchange=renderBoard;
   document.getElementById('addBtn').onclick=()=>openModal(null);
   document.getElementById('closeModal').onclick=closeModal;
   document.getElementById('cancelModal').onclick=closeModal;
