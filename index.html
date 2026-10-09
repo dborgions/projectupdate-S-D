@@ -94,7 +94,16 @@
   .step.bezig .box{border-color:var(--loopt)}
   .step.done .box{background:var(--afgerond);border-color:var(--afgerond)}
   .step .innerdot{width:8px;height:8px;border-radius:50%;background:var(--loopt)}
-  .step .txt{flex:1}
+  .step .txt{flex:1;cursor:text;border-radius:5px;padding:1px 3px}
+  .step .txt:hover{background:#eef2f7}
+  .step .txt-edit{flex:1;font:inherit;font-size:13.5px;border:1px solid var(--brand);border-radius:6px;padding:3px 7px;color:var(--ink);background:#fff;outline:none}
+  .step .grip{flex:none;display:flex;align-items:center;color:#c4cdda;cursor:grab;opacity:.4}
+  .step:hover .grip{opacity:1;color:var(--muted)}
+  .step .grip:active{cursor:grabbing}
+  .step .box{cursor:pointer}
+  .step .box:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
+  .step.dragging{opacity:.4}
+  .step.dragover{box-shadow:inset 0 2px 0 var(--brand)}
   .step-date{font-size:11.5px;color:var(--faint);flex:none;white-space:nowrap}
   .step.done .txt{color:var(--faint);text-decoration:line-through}
   .step.bezig .txt{color:var(--loopt);font-weight:600}
@@ -256,9 +265,9 @@ const FASES={
   afgerond:{label:'Afgerond',c:'--afgerond',bg:'--afgerond-bg'}
 };
 const ORDER=['loopt','nazorg','planning','afgerond'];
-const PORTEFEUILLES=['HR','P&O','Marketing','Facilities','Opleiden','Automations','Data','Innovatie','Wagenpark','Jobboards','Activiteiten','Website/Welder','Intern Recruitment'];
+const PORTEFEUILLES=['HR','Marketing','Facilities','Opleiden','Automations','Data','Innovatie','Wagenpark','Jobboards','Activiteiten','Website/Welder','Intern Recruitment'];
 
-let projects=[], editId=null, statusFilter='', expanded=new Set(), editor='';
+let projects=[], editId=null, statusFilter='', expanded=new Set(), editor='', dragSrc=null, editingStep=false;
 
 /* ---------- helpers ---------- */
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -371,6 +380,7 @@ function cardsHtml(arr){
         ${p.deadline?`<span class="meta"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>${esc(p.deadline)}</span>`:''}
         <span class="meta ${isRecent(p)?'recent-flag':''}">Bijgewerkt ${fmtDate(p.updated_at)}${p.updated_by?' door '+esc(p.updated_by):''}</span>
         ${KIJK?'':`<span class="spacer"></span>
+        ${p.fase!=='afgerond'?`<button class="linkbtn done-btn" data-done="${p.id}">Markeer afgerond</button>`:''}
         <button class="linkbtn" data-edit="${p.id}">Bewerken</button>
         <button class="linkbtn del" data-del="${p.id}">Verwijderen</button>`}
       </div>
@@ -410,12 +420,14 @@ function buildSteps(p){
   }
   let body='';
   if(isOpen){
-    const items=steps.map(s=>{
+    const items=steps.map((s,i)=>{
       let box='';
       if(s.status==='done')box='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4"><path d="M20 6 9 17l-5-5"/></svg>';
       else if(s.status==='bezig')box='<span class="innerdot"></span>';
-      return `<div class="step ${s.status}" data-proj="${p.id}" data-step="${s.id}" role="button" tabindex="0" title="Klik om de stand te wijzigen">
-        <span class="box">${box}</span><span class="txt">${esc(s.tekst)}</span>
+      return `<div class="step ${s.status}" data-proj="${p.id}" data-step="${s.id}" data-idx="${i}" draggable="true">
+        <span class="grip" title="Sleep om te ordenen"><svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="2" cy="3" r="1.3"/><circle cx="8" cy="3" r="1.3"/><circle cx="2" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="2" cy="13" r="1.3"/><circle cx="8" cy="13" r="1.3"/></svg></span>
+        <span class="box" role="button" tabindex="0" title="Klik om af te vinken">${box}</span>
+        <span class="txt" title="Klik om te bewerken">${esc(s.tekst)}</span>
         ${s.status==='done'&&s.done_op?`<span class="step-date">${fmtDate(s.done_op)}</span>`:''}
         <span class="x" data-proj="${p.id}" data-step="${s.id}" title="Stap verwijderen">&times;</span>
       </div>`;
@@ -429,11 +441,19 @@ function buildSteps(p){
 function wireBoard(board){
   board.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>openModal(b.dataset.edit));
   board.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>delProject(b.dataset.del));
+  board.querySelectorAll('[data-done]').forEach(b=>b.onclick=()=>markDone(b.dataset.done));
   board.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>{const id=b.dataset.toggle;expanded.has(id)?expanded.delete(id):expanded.add(id);renderBoard();});
   board.querySelectorAll('.step').forEach(el=>{
-    const go=e=>{if(e.target.closest('.x'))return;cycleStep(el.dataset.proj,el.dataset.step);};
-    el.onclick=go;
-    el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go(e);}};
+    const pid=el.dataset.proj, sid=el.dataset.step;
+    const box=el.querySelector('.box');
+    box.onclick=e=>{e.stopPropagation();cycleStep(pid,sid);};
+    box.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();cycleStep(pid,sid);}};
+    el.querySelector('.txt').onclick=e=>{e.stopPropagation();startEditStep(el,pid,sid);};
+    el.ondragstart=e=>{dragSrc={pid,idx:+el.dataset.idx};el.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','');};
+    el.ondragend=()=>{el.classList.remove('dragging');board.querySelectorAll('.step.dragover').forEach(x=>x.classList.remove('dragover'));};
+    el.ondragover=e=>{if(!dragSrc||dragSrc.pid!==pid)return;e.preventDefault();el.classList.add('dragover');};
+    el.ondragleave=()=>el.classList.remove('dragover');
+    el.ondrop=e=>{if(!dragSrc||dragSrc.pid!==pid)return;e.preventDefault();el.classList.remove('dragover');const to=+el.dataset.idx,from=dragSrc.idx;dragSrc=null;reorderStep(pid,from,to);};
   });
   board.querySelectorAll('.step .x').forEach(x=>x.onclick=e=>{e.stopPropagation();delStep(x.dataset.proj,x.dataset.step);});
   board.querySelectorAll('[data-addstep]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim())addStep(inp.dataset.addstep,inp.value);});
@@ -456,6 +476,36 @@ async function addStep(pid,tekst){
 async function delStep(pid,sid){
   const p=projects.find(x=>x.id===pid);p.steps=p.steps.filter(x=>x.id!==sid);
   try{await dbUpdate(pid,{steps:p.steps});await reload();}catch(e){showError(e.message);}
+}
+async function reorderStep(pid,from,to){
+  if(from===to)return;
+  const p=projects.find(x=>x.id===pid),arr=p.steps;
+  const [moved]=arr.splice(from,1);
+  arr.splice(from<to?to-1:to,0,moved);
+  try{await dbUpdate(pid,{steps:arr});await reload();}catch(e){showError(e.message);}
+}
+function startEditStep(stepEl,pid,sid){
+  if(editingStep)return;editingStep=true;
+  const p=projects.find(x=>x.id===pid),s=p.steps.find(x=>x.id===sid);
+  stepEl.setAttribute('draggable','false');
+  const txt=stepEl.querySelector('.txt');
+  const inp=document.createElement('input');
+  inp.type='text';inp.className='txt-edit';inp.value=s.tekst;
+  txt.replaceWith(inp);inp.focus();inp.select();
+  let fin=false;
+  const finish=async(save)=>{
+    if(fin)return;fin=true;editingStep=false;
+    const val=inp.value.trim();
+    if(save&&val&&val!==s.tekst){s.tekst=val;try{await dbUpdate(pid,{steps:p.steps});}catch(e){showError(e.message);}}
+    await reload();
+  };
+  inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();finish(true);}else if(e.key==='Escape'){e.preventDefault();finish(false);}};
+  inp.onblur=()=>finish(true);
+}
+async function markDone(pid){
+  const p=projects.find(x=>x.id===pid);
+  if(!confirm(`"${p.naam}" op afgerond zetten?`))return;
+  try{await dbUpdate(pid,{fase:'afgerond',on_hold:false});await reload();}catch(e){showError(e.message);}
 }
 
 /* ---------- modal ---------- */
