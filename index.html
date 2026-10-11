@@ -62,6 +62,8 @@
   .group-h{position:sticky;top:8px;z-index:5;display:flex;align-items:center;gap:11px;margin:0 0 13px;padding:11px 15px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:11px;font-size:15.5px;font-weight:700;color:var(--ink);letter-spacing:-.1px;box-shadow:var(--shadow)}
   .group-h .count{color:var(--faint);font-weight:500;font-size:13px}
   .group-h .dot{width:9px;height:9px}
+  .group-h.filled{color:#fff;border-left-width:1px}
+  .group-h.filled .count{color:rgba(255,255,255,.78)}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 17px;margin-bottom:11px;box-shadow:var(--shadow);transition:border-color .12s}
   .card:hover{border-color:#d6deea}
@@ -116,6 +118,23 @@
   .step-add input{flex:1;font:inherit;font-size:13.5px;border:none;border-bottom:1px dashed transparent;background:none;padding:3px 1px;color:var(--ink)}
   .step-add input::placeholder{color:var(--faint)}
   .step-add input:focus{outline:none;border-bottom-color:var(--brand)}
+  .steps-body{margin-top:6px}
+  .subdoel{margin-top:2px}
+  .subdoel.is-titled{margin-top:11px}
+  .subdoel-h{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;background:#eaf0f6;font-size:13px;font-weight:600;color:var(--ink)}
+  .subdoel-h .sd-title{flex:1;cursor:text;border-radius:5px;padding:1px 4px}
+  .subdoel-h .sd-title:hover{background:#dce6f1}
+  .subdoel-h .sd-title-edit{flex:1;font:inherit;font-size:13px;font-weight:600;border:1px solid var(--brand);border-radius:6px;padding:3px 7px;color:var(--ink);background:#fff;outline:none}
+  .subdoel-h .sd-prog{font-size:11.5px;font-weight:600;color:var(--muted);flex:none}
+  .subdoel-h .x{opacity:.45;color:var(--muted);font-size:17px;line-height:1;padding:0 4px;border-radius:5px;cursor:pointer}
+  .subdoel-h:hover .x{opacity:1}
+  .subdoel-h .x:hover{color:#b3324a;background:#fbe9ec}
+  .subdoel.is-titled .steps-list{margin-left:12px;padding-left:9px;border-left:2px solid #dce4ee}
+  .sub-add{display:flex;align-items:center;gap:10px;padding:9px 8px 2px;margin-top:5px;border-top:1px dashed var(--line)}
+  .sub-add .plus{width:18px;text-align:center;color:var(--brand);font-size:16px;flex:none;font-weight:700}
+  .sub-add input{flex:1;font:inherit;font-size:13px;font-weight:600;border:none;border-bottom:1px dashed transparent;background:none;padding:3px 1px;color:var(--ink)}
+  .sub-add input::placeholder{color:var(--faint);font-weight:500}
+  .sub-add input:focus{outline:none;border-bottom-color:var(--brand)}
 
   .card-foot{display:flex;align-items:center;gap:14px;margin-top:13px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;color:var(--faint);flex-wrap:wrap}
   .card-foot .meta{display:flex;align-items:center;gap:6px}
@@ -182,7 +201,7 @@
       <input id="search" type="text" placeholder="Zoek op project of toelichting...">
     </div>
     <select id="portFilter"><option value="">Alle portefeuilles</option></select>
-    <select id="groupBy"><option value="fase">Groeperen op fase</option><option value="port">Groeperen op portefeuille</option></select>
+    <select id="groupBy"><option value="port">Groeperen op portefeuille</option><option value="fase">Groeperen op fase</option></select>
     <label class="recent"><input type="checkbox" id="recentChk">Recent gewijzigd</label>
     <button class="btn btn-primary" id="addBtn">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
@@ -268,6 +287,8 @@ const FASES={
 };
 const ORDER=['loopt','nazorg','planning','afgerond'];
 const PORTEFEUILLES=['HR','Marketing','Facilities','Opleiden','Automations','Data','Innovatie','Wagenpark','Jobboards','Activiteiten','Website/Welder','Intern Recruitment'];
+const PORTCOLORS={'HR':'#7b5ea7','Marketing':'#c0567a','Facilities':'#5a8f7b','Opleiden':'#8a8f3c','Automations':'#5b63b5','Data':'#3f9aa8','Innovatie':'#c76b4a','Wagenpark':'#6b7280','Jobboards':'#a05195','Activiteiten':'#c99a2e','Website/Welder':'#4e8d6e','Intern Recruitment':'#8c6d46'};
+function portColor(p){return PORTCOLORS[p]||'#8a94a4';}
 
 let projects=[], editId=null, statusFilter='', expanded=new Set(), editor='', dragSrc=null, editingStep=false;
 
@@ -278,7 +299,11 @@ function fmtDate(iso){if(!iso)return '';const[y,m,d]=iso.slice(0,10).split('-');
 const today=()=>new Date().toISOString().slice(0,10);
 const nowISO=()=>new Date().toISOString();
 function daysAgo(iso){if(!iso)return 9999;return (Date.now()-new Date(iso).getTime())/86400000;}
-function isRecent(p){if(daysAgo(p.updated_at)<=30)return true;return (p.steps||[]).some(s=>s.status==='done'&&daysAgo(s.done_op)<=30);}
+function subs(p){return p.steps||[];}
+function allStappen(p){return subs(p).flatMap(sd=>(sd&&sd.stappen)?sd.stappen:[]);}
+function findSub(p,sdid){return subs(p).find(sd=>sd.id===sdid);}
+function normProj(p){let a=p.steps;if(!Array.isArray(a)){p.steps=[];return;}if(a.length===0)return;if(a[0]&&a[0].stappen!==undefined)return;p.steps=[{id:'sd'+Math.random().toString(36).slice(2,9),titel:'',stappen:a}];}
+function isRecent(p){if(daysAgo(p.updated_at)<=30)return true;return allStappen(p).some(s=>s.status==='done'&&daysAgo(s.done_op)<=30);}
 
 /* ---------- data layer (Supabase of demo) ---------- */
 const H=()=>({apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY,'Content-Type':'application/json',Prefer:'return=representation'});
@@ -306,7 +331,7 @@ async function dbDelete(id){
   const r=await fetch(SUPABASE_URL+'/rest/v1/projects?id=eq.'+id,{method:'DELETE',headers:H()});
   if(!r.ok)throw new Error('Verwijderen mislukt ('+r.status+')');
 }
-async function reload(){try{projects=await dbList();renderSummary();renderBoard();}catch(e){showError(e.message);}}
+async function reload(){try{projects=await dbList();projects.forEach(normProj);renderSummary();renderBoard();}catch(e){showError(e.message);}}
 
 /* ---------- banner ---------- */
 function showError(msg){document.getElementById('banner').innerHTML=`<div class="banner err"><b>Er ging iets mis:</b> ${esc(msg)} Controleer je Supabase-gegevens.</div>`;}
@@ -355,28 +380,30 @@ function renderBoard(){
     const present=[...new Set(list.map(p=>p.portefeuille))];
     const ordered=[...PORTEFEUILLES.filter(x=>present.includes(x)),...present.filter(x=>!PORTEFEUILLES.includes(x)).sort()];
     ordered.forEach(port=>{
-      const grp=list.filter(p=>p.portefeuille===port).sort(sortFn);
+      const faseRank=k=>{const i=ORDER.indexOf(k);return i<0?99:i;};
+      const grp=list.filter(p=>p.portefeuille===port).sort((a,b)=>faseRank(a.fase)-faseRank(b.fase)||new Date(b.updated_at)-new Date(a.updated_at));
       if(!grp.length)return;
-      html+=`<div class="group">${groupHeader(port,grp.length,'--brand')}${cardsHtml(grp)}</div>`;
+      html+=`<div class="group">${groupHeader(port,grp.length,portColor(port),true)}${cardsHtml(grp,false)}</div>`;
     });
   }else if(statusFilter==='onhold'){
-    html+=cardsHtml(list.sort(sortFn));
+    html+=cardsHtml(list.sort(sortFn),true);
   }else{
     ORDER.forEach(k=>{
       const grp=list.filter(p=>p.fase===k).sort(sortFn);
       if(!grp.length)return;
       const s=FASES[k];
-      html+=`<div class="group">${groupHeader(s.label,grp.length,s.c)}${cardsHtml(grp)}</div>`;
+      html+=`<div class="group">${groupHeader(s.label,grp.length,`var(${s.c})`)}${cardsHtml(grp,true)}</div>`;
     });
   }
   board.innerHTML=html;
   wireBoard(board);
 }
 
-function cardsHtml(arr){
+function cardsHtml(arr,edge){
   return arr.map(p=>{
     const s=FASES[p.fase]||FASES.loopt;
-    return `<div class="card">
+    const cardStyle=edge?` style="border-left:4px solid ${portColor(p.portefeuille)}"`:'';
+    return `<div class="card"${cardStyle}>
       <div class="card-top">
         <span class="pill" style="color:var(${s.c});background:var(${s.bg})"><span class="dot" style="background:var(${s.c})"></span>${s.label}</span>
         ${p.on_hold?`<span class="pill" style="color:var(--onhold);background:var(--onhold-bg)"><span class="dot" style="background:var(--onhold)"></span>On hold</span>`:''}
@@ -399,55 +426,75 @@ function cardsHtml(arr){
   }).join('');
 }
 
-function groupHeader(label,count,colorVar){
-  return `<div class="group-h" style="border-left-color:var(${colorVar})"><span class="dot" style="background:var(${colorVar})"></span>${esc(label)} <span class="count">(${count})</span></div>`;
+function groupHeader(label,count,color,filled){
+  if(filled)return `<div class="group-h filled" style="background:${color};border-color:${color}"><span class="dot" style="background:rgba(255,255,255,.92)"></span>${esc(label)} <span class="count">(${count})</span></div>`;
+  return `<div class="group-h" style="border-left-color:${color}"><span class="dot" style="background:${color}"></span>${esc(label)} <span class="count">(${count})</span></div>`;
 }
 function chev(){return '<svg class="chev" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>';}
-function curSummary(steps){
-  const done=steps.filter(s=>s.status==='done').length, total=steps.length;
-  const bezig=steps.find(s=>s.status==='bezig'), nextTodo=steps.find(s=>s.status==='todo');
+function projSummary(p){
+  const all=allStappen(p);
+  const total=all.length, done=all.filter(s=>s.status==='done').length;
+  let cur=null, curSub=null;
+  for(const sd of subs(p)){for(const st of (sd.stappen||[])){if(st.status==='bezig'){cur=st;curSub=sd;break;}}if(cur)break;}
+  if(!cur){for(const sd of subs(p)){for(const st of (sd.stappen||[])){if(st.status==='todo'){cur=st;curSub=sd;break;}}if(cur)break;}}
   let lbl='Stappen',txt='',cls='';
-  if(bezig){lbl='Huidige stap';txt=bezig.tekst;cls='cur-bezig';}
+  if(cur){lbl=cur.status==='bezig'?'Huidige stap':'Volgende stap';cls=cur.status==='bezig'?'cur-bezig':'cur-todo';txt=(curSub&&curSub.titel?curSub.titel+' · ':'')+cur.tekst;}
   else if(total&&done===total){txt='Alle stappen afgerond';cls='cur-done';}
-  else if(nextTodo){lbl='Volgende stap';txt=nextTodo.tekst;cls='cur-todo';}
   return {done,total,lbl,txt,cls};
 }
+function stepRow(p,sd,s,i){
+  let box='';
+  if(s.status==='done')box='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4"><path d="M20 6 9 17l-5-5"/></svg>';
+  else if(s.status==='bezig')box='<span class="innerdot"></span>';
+  return `<div class="step ${s.status}" data-proj="${p.id}" data-sub="${sd.id}" data-step="${s.id}" data-idx="${i}" draggable="true">
+    <span class="grip" title="Sleep om te ordenen"><svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="2" cy="3" r="1.3"/><circle cx="8" cy="3" r="1.3"/><circle cx="2" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="2" cy="13" r="1.3"/><circle cx="8" cy="13" r="1.3"/></svg></span>
+    <span class="box" role="button" tabindex="0" title="Klik om af te vinken">${box}</span>
+    <span class="txt" title="Klik om te bewerken">${esc(s.tekst)}</span>
+    ${s.status==='done'&&s.done_op?`<span class="step-date">${fmtDate(s.done_op)}</span>`:''}
+    <span class="x" data-proj="${p.id}" data-sub="${sd.id}" data-step="${s.id}" title="Stap verwijderen">&times;</span>
+  </div>`;
+}
+function renderSubdoel(p,sd){
+  const titled=!!sd.titel, st=sd.stappen||[], done=st.filter(x=>x.status==='done').length;
+  let h='';
+  if(titled){
+    h=`<div class="subdoel-h">
+      <span class="sd-title" data-editsub="${p.id}|||${sd.id}" title="Klik om te bewerken">${esc(sd.titel)}</span>
+      <span class="sd-prog">${done}/${st.length}</span>
+      <span class="x" data-delsub="${p.id}|||${sd.id}" title="Subdoel verwijderen">&times;</span>
+    </div>`;
+  }
+  const items=st.map((s,i)=>stepRow(p,sd,s,i)).join('');
+  const add=`<div class="step-add"><span class="plus">+</span><input type="text" data-addstep="${p.id}|||${sd.id}" placeholder="Stap toevoegen, druk op enter"></div>`;
+  return `<div class="subdoel ${titled?'is-titled':''}">${h}<div class="steps-list">${items}${add}</div></div>`;
+}
 function buildSteps(p){
-  const steps=p.steps||[];
+  const all=allStappen(p);
   if(KIJK){
-    if(!steps.length)return '';
-    const c=curSummary(steps);
+    if(!all.length)return '';
+    const c=projSummary(p);
     return `<div class="steps"><div class="steps-static">
       <span class="steps-head-l"><span class="cur-lbl">${c.lbl}</span><span class="cur-txt ${c.cls}">${esc(c.txt)}</span></span>
       <span class="steps-meta">${c.done}/${c.total}</span>
     </div></div>`;
   }
-  const total=steps.length, done=steps.filter(s=>s.status==='done').length, isOpen=expanded.has(p.id);
+  const total=all.length, done=all.filter(s=>s.status==='done').length, isOpen=expanded.has(p.id);
   let head;
   if(isOpen){
     head=`<button class="steps-toggle open" data-toggle="${p.id}"><span class="steps-head-l"><span class="cur-lbl">Stappen</span>${total?`<span class="steps-meta">${done} van ${total} afgerond</span>`:''}</span>${chev()}</button>`;
   }else if(total===0){
     head=`<button class="steps-toggle" data-toggle="${p.id}"><span class="steps-head-l"><span class="cur-lbl">Stappen toevoegen</span></span>${chev()}</button>`;
   }else{
-    const c=curSummary(steps);
+    const c=projSummary(p);
     head=`<button class="steps-toggle" data-toggle="${p.id}"><span class="steps-head-l"><span class="cur-lbl">${c.lbl}</span><span class="cur-txt ${c.cls}">${esc(c.txt)}</span></span><span class="steps-meta">${done}/${total}</span>${chev()}</button>`;
   }
   let body='';
   if(isOpen){
-    const items=steps.map((s,i)=>{
-      let box='';
-      if(s.status==='done')box='<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.4"><path d="M20 6 9 17l-5-5"/></svg>';
-      else if(s.status==='bezig')box='<span class="innerdot"></span>';
-      return `<div class="step ${s.status}" data-proj="${p.id}" data-step="${s.id}" data-idx="${i}" draggable="true">
-        <span class="grip" title="Sleep om te ordenen"><svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="2" cy="3" r="1.3"/><circle cx="8" cy="3" r="1.3"/><circle cx="2" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="2" cy="13" r="1.3"/><circle cx="8" cy="13" r="1.3"/></svg></span>
-        <span class="box" role="button" tabindex="0" title="Klik om af te vinken">${box}</span>
-        <span class="txt" title="Klik om te bewerken">${esc(s.tekst)}</span>
-        ${s.status==='done'&&s.done_op?`<span class="step-date">${fmtDate(s.done_op)}</span>`:''}
-        <span class="x" data-proj="${p.id}" data-step="${s.id}" title="Stap verwijderen">&times;</span>
-      </div>`;
-    }).join('');
-    const add=`<div class="step-add"><span class="plus">+</span><input type="text" data-addstep="${p.id}" placeholder="Stap toevoegen, druk op enter"></div>`;
-    body=`<div class="steps-list">${items}${add}</div>`;
+    body='<div class="steps-body">';
+    subs(p).forEach(sd=>{body+=renderSubdoel(p,sd);});
+    if(subs(p).length===0){body+=`<div class="step-add"><span class="plus">+</span><input type="text" data-addstep="${p.id}|||" placeholder="Stap toevoegen, druk op enter"></div>`;}
+    body+=`<div class="sub-add"><span class="plus">+</span><input type="text" data-addsub="${p.id}" placeholder="Subdoel toevoegen, druk op enter"></div>`;
+    body+='</div>';
   }
   return `<div class="steps">${head}${body}</div>`;
 }
@@ -458,49 +505,71 @@ function wireBoard(board){
   board.querySelectorAll('[data-done]').forEach(b=>b.onclick=()=>markDone(b.dataset.done));
   board.querySelectorAll('[data-toggle]').forEach(b=>b.onclick=()=>{const id=b.dataset.toggle;expanded.has(id)?expanded.delete(id):expanded.add(id);renderBoard();});
   board.querySelectorAll('.step').forEach(el=>{
-    const pid=el.dataset.proj, sid=el.dataset.step;
+    const pid=el.dataset.proj, sdid=el.dataset.sub, sid=el.dataset.step;
     const box=el.querySelector('.box');
-    box.onclick=e=>{e.stopPropagation();cycleStep(pid,sid);};
-    box.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();cycleStep(pid,sid);}};
-    el.querySelector('.txt').onclick=e=>{e.stopPropagation();startEditStep(el,pid,sid);};
-    el.ondragstart=e=>{dragSrc={pid,idx:+el.dataset.idx};el.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','');};
+    box.onclick=e=>{e.stopPropagation();cycleStep(pid,sdid,sid);};
+    box.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();cycleStep(pid,sdid,sid);}};
+    el.querySelector('.txt').onclick=e=>{e.stopPropagation();startEditStep(el,pid,sdid,sid);};
+    el.ondragstart=e=>{dragSrc={pid,sdid,idx:+el.dataset.idx};el.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','');};
     el.ondragend=()=>{el.classList.remove('dragging');board.querySelectorAll('.step.dragover').forEach(x=>x.classList.remove('dragover'));};
-    el.ondragover=e=>{if(!dragSrc||dragSrc.pid!==pid)return;e.preventDefault();el.classList.add('dragover');};
+    el.ondragover=e=>{if(!dragSrc||dragSrc.pid!==pid||dragSrc.sdid!==sdid)return;e.preventDefault();el.classList.add('dragover');};
     el.ondragleave=()=>el.classList.remove('dragover');
-    el.ondrop=e=>{if(!dragSrc||dragSrc.pid!==pid)return;e.preventDefault();el.classList.remove('dragover');const to=+el.dataset.idx,from=dragSrc.idx;dragSrc=null;reorderStep(pid,from,to);};
+    el.ondrop=e=>{if(!dragSrc||dragSrc.pid!==pid||dragSrc.sdid!==sdid)return;e.preventDefault();el.classList.remove('dragover');const to=+el.dataset.idx,from=dragSrc.idx,sd=dragSrc.sdid;dragSrc=null;reorderStep(pid,sd,from,to);};
   });
-  board.querySelectorAll('.step .x').forEach(x=>x.onclick=e=>{e.stopPropagation();delStep(x.dataset.proj,x.dataset.step);});
-  board.querySelectorAll('[data-addstep]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim())addStep(inp.dataset.addstep,inp.value);});
+  board.querySelectorAll('.step .x').forEach(x=>x.onclick=e=>{e.stopPropagation();delStep(x.dataset.proj,x.dataset.sub,x.dataset.step);});
+  board.querySelectorAll('[data-addstep]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim()){const parts=inp.dataset.addstep.split('|||');addStep(parts[0],parts[1]||'',inp.value);}});
+  board.querySelectorAll('[data-addsub]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim())addSub(inp.dataset.addsub,inp.value);});
+  board.querySelectorAll('[data-delsub]').forEach(x=>x.onclick=e=>{e.stopPropagation();const p=x.dataset.delsub.split('|||');delSub(p[0],p[1]);});
+  board.querySelectorAll('[data-editsub]').forEach(t=>t.onclick=e=>{e.stopPropagation();const p=t.dataset.editsub.split('|||');startEditSub(t,p[0],p[1]);});
 }
 
-/* ---------- step actions ---------- */
-async function cycleStep(pid,sid){
-  const p=projects.find(x=>x.id===pid),s=p.steps.find(x=>x.id===sid);
+/* ---------- step + subdoel actions ---------- */
+async function cycleStep(pid,sdid,sid){
+  const p=projects.find(x=>x.id===pid),sd=findSub(p,sdid),s=sd.stappen.find(x=>x.id===sid);
   s.status=s.status==='todo'?'bezig':s.status==='bezig'?'done':'todo';
   if(s.status==='done')s.done_op=today();else s.done_op='';
   try{await dbUpdate(pid,{steps:p.steps});await reload();}catch(e){showError(e.message);}
 }
-async function addStep(pid,tekst){
-  const p=projects.find(x=>x.id===pid);if(!p.steps)p.steps=[];
-  p.steps.push({id:'s'+Date.now(),tekst:tekst.trim(),status:'todo'});
+async function addStep(pid,sdid,tekst){
+  const p=projects.find(x=>x.id===pid);if(!Array.isArray(p.steps))p.steps=[];
+  let sd;
+  if(sdid){sd=findSub(p,sdid);}
+  else{sd=subs(p).find(x=>!x.titel);if(!sd){sd={id:'sd'+Date.now(),titel:'',stappen:[]};p.steps.unshift(sd);}}
+  if(!sd)return;
+  sd.stappen.push({id:'s'+Date.now(),tekst:tekst.trim(),status:'todo'});
   try{await dbUpdate(pid,{steps:p.steps});await reload();
-    const inp=document.querySelector(`[data-addstep="${pid}"]`);if(inp){inp.value='';inp.focus();}
+    const inp=document.querySelector(`[data-addstep="${pid}|||${sd.id}"]`);if(inp){inp.value='';inp.focus();}
   }catch(e){showError(e.message);}
 }
-async function delStep(pid,sid){
-  const p=projects.find(x=>x.id===pid);p.steps=p.steps.filter(x=>x.id!==sid);
+async function delStep(pid,sdid,sid){
+  const p=projects.find(x=>x.id===pid),sd=findSub(p,sdid);
+  sd.stappen=sd.stappen.filter(x=>x.id!==sid);
   try{await dbUpdate(pid,{steps:p.steps});await reload();}catch(e){showError(e.message);}
 }
-async function reorderStep(pid,from,to){
+async function reorderStep(pid,sdid,from,to){
   if(from===to)return;
-  const p=projects.find(x=>x.id===pid),arr=p.steps;
+  const p=projects.find(x=>x.id===pid),arr=findSub(p,sdid).stappen;
   const [moved]=arr.splice(from,1);
   arr.splice(from<to?to-1:to,0,moved);
-  try{await dbUpdate(pid,{steps:arr});await reload();}catch(e){showError(e.message);}
+  try{await dbUpdate(pid,{steps:p.steps});await reload();}catch(e){showError(e.message);}
 }
-function startEditStep(stepEl,pid,sid){
+async function addSub(pid,titel){
+  const p=projects.find(x=>x.id===pid);if(!Array.isArray(p.steps))p.steps=[];
+  p.steps.push({id:'sd'+Date.now(),titel:titel.trim(),stappen:[]});
+  try{await dbUpdate(pid,{steps:p.steps});await reload();
+    const inp=document.querySelector(`[data-addsub="${pid}"]`);if(inp){inp.value='';inp.focus();}
+  }catch(e){showError(e.message);}
+}
+async function delSub(pid,sdid){
+  const p=projects.find(x=>x.id===pid),sd=findSub(p,sdid);
+  const n=(sd.stappen||[]).length;
+  if(!confirm(`Subdoel "${sd.titel}"${n?' met '+n+' stappen':''} verwijderen?`))return;
+  p.steps=subs(p).filter(x=>x.id!==sdid);
+  try{await dbUpdate(pid,{steps:p.steps});await reload();}catch(e){showError(e.message);}
+}
+function startEditStep(stepEl,pid,sdid,sid){
   if(editingStep)return;editingStep=true;
-  const p=projects.find(x=>x.id===pid),s=p.steps.find(x=>x.id===sid);
+  const p=projects.find(x=>x.id===pid),sd=findSub(p,sdid),s=sd.stappen.find(x=>x.id===sid);
   stepEl.setAttribute('draggable','false');
   const txt=stepEl.querySelector('.txt');
   const inp=document.createElement('input');
@@ -511,6 +580,22 @@ function startEditStep(stepEl,pid,sid){
     if(fin)return;fin=true;editingStep=false;
     const val=inp.value.trim();
     if(save&&val&&val!==s.tekst){s.tekst=val;try{await dbUpdate(pid,{steps:p.steps});}catch(e){showError(e.message);}}
+    await reload();
+  };
+  inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();finish(true);}else if(e.key==='Escape'){e.preventDefault();finish(false);}};
+  inp.onblur=()=>finish(true);
+}
+function startEditSub(titleEl,pid,sdid){
+  if(editingStep)return;editingStep=true;
+  const p=projects.find(x=>x.id===pid),sd=findSub(p,sdid);
+  const inp=document.createElement('input');
+  inp.type='text';inp.className='sd-title-edit';inp.value=sd.titel;
+  titleEl.replaceWith(inp);inp.focus();inp.select();
+  let fin=false;
+  const finish=async(save)=>{
+    if(fin)return;fin=true;editingStep=false;
+    const val=inp.value.trim();
+    if(save&&val&&val!==sd.titel){sd.titel=val;try{await dbUpdate(pid,{steps:p.steps});}catch(e){showError(e.message);}}
     await reload();
   };
   inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();finish(true);}else if(e.key==='Escape'){e.preventDefault();finish(false);}};
