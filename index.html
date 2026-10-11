@@ -145,6 +145,7 @@
   .subdoel-h:hover .x{opacity:1}
   .subdoel-h .x:hover{color:#b3324a;background:#fbe9ec}
   .subdoel.is-titled .steps-list{margin-left:12px;padding-left:9px;border-left:2px solid #dce4ee}
+  .subdoel-h.dragover{box-shadow:inset 0 0 0 2px var(--brand)}
   .sub-add{display:flex;align-items:center;gap:10px;padding:9px 8px 2px;margin-top:5px;border-top:1px dashed var(--line)}
   .sub-add .plus{width:18px;text-align:center;color:var(--brand);font-size:16px;flex:none;font-weight:700}
   .sub-add input{flex:1;font:inherit;font-size:13px;font-weight:600;border:none;border-bottom:1px dashed transparent;background:none;padding:3px 1px;color:var(--ink)}
@@ -573,10 +574,10 @@ function wireBoard(board){
     box.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();cycleStep(pid,sdid,sid);}};
     el.querySelector('.txt').onclick=e=>{e.stopPropagation();startEditStep(el,pid,sdid,sid);};
     el.ondragstart=e=>{dragSrc={pid,sdid,idx:+el.dataset.idx};el.classList.add('dragging');e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','');};
-    el.ondragend=()=>{el.classList.remove('dragging');board.querySelectorAll('.step.dragover').forEach(x=>x.classList.remove('dragover'));};
-    el.ondragover=e=>{if(!dragSrc||dragSrc.pid!==pid||dragSrc.sdid!==sdid)return;e.preventDefault();el.classList.add('dragover');};
+    el.ondragend=()=>{el.classList.remove('dragging');board.querySelectorAll('.dragover').forEach(x=>x.classList.remove('dragover'));};
+    el.ondragover=e=>{if(!dragSrc||dragSrc.pid!==pid)return;e.preventDefault();el.classList.add('dragover');};
     el.ondragleave=()=>el.classList.remove('dragover');
-    el.ondrop=e=>{if(!dragSrc||dragSrc.pid!==pid||dragSrc.sdid!==sdid)return;e.preventDefault();el.classList.remove('dragover');const to=+el.dataset.idx,from=dragSrc.idx,sd=dragSrc.sdid;dragSrc=null;reorderStep(pid,sd,from,to);};
+    el.ondrop=e=>{if(!dragSrc||dragSrc.pid!==pid)return;e.preventDefault();el.classList.remove('dragover');const toIdx=+el.dataset.idx,toSd=el.dataset.sub,d=dragSrc;dragSrc=null;moveStep(d.pid,d.sdid,d.idx,toSd,toIdx);};
   });
   board.querySelectorAll('.step .x').forEach(x=>x.onclick=e=>{e.stopPropagation();delStep(x.dataset.proj,x.dataset.sub,x.dataset.step);});
   board.querySelectorAll('[data-addstep]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim()){const parts=inp.dataset.addstep.split('|||');addStep(parts[0],parts[1]||'',inp.value);}});
@@ -584,6 +585,12 @@ function wireBoard(board){
   board.querySelectorAll('[data-togglesub]').forEach(el=>el.onclick=e=>{const p=el.dataset.togglesub.split('|||');toggleSub(p[0],p[1]);});
   board.querySelectorAll('[data-delsub]').forEach(x=>x.onclick=e=>{e.stopPropagation();const p=x.dataset.delsub.split('|||');delSub(p[0],p[1]);});
   board.querySelectorAll('[data-editsub]').forEach(t=>t.onclick=e=>{e.stopPropagation();const p=t.dataset.editsub.split('|||');startEditSub(t,p[0],p[1]);});
+  board.querySelectorAll('[data-togglesub]').forEach(h=>{
+    const parts=h.dataset.togglesub.split('|||'),pid=parts[0],sdid=parts[1];
+    h.ondragover=e=>{if(!dragSrc||dragSrc.pid!==pid)return;e.preventDefault();h.classList.add('dragover');};
+    h.ondragleave=()=>h.classList.remove('dragover');
+    h.ondrop=e=>{if(!dragSrc||dragSrc.pid!==pid)return;e.preventDefault();h.classList.remove('dragover');const d=dragSrc;dragSrc=null;const dst=findSub(projects.find(x=>x.id===pid),sdid);moveStep(d.pid,d.sdid,d.idx,sdid,dst.stappen.length);};
+  });
 }
 
 /* ---------- step + subdoel actions ---------- */
@@ -609,11 +616,15 @@ async function delStep(pid,sdid,sid){
   sd.stappen=sd.stappen.filter(x=>x.id!==sid);
   try{await dbUpdate(pid,{steps:p.steps});await reload();}catch(e){showError(e.message);}
 }
-async function reorderStep(pid,sdid,from,to){
-  if(from===to)return;
-  const p=projects.find(x=>x.id===pid),arr=findSub(p,sdid).stappen;
-  const [moved]=arr.splice(from,1);
-  arr.splice(from<to?to-1:to,0,moved);
+async function moveStep(pid,fromSd,fromIdx,toSd,toIdx){
+  const p=projects.find(x=>x.id===pid),src=findSub(p,fromSd),dst=findSub(p,toSd);
+  if(!src||!dst)return;
+  if(fromSd===toSd&&fromIdx===toIdx)return;
+  const [moved]=src.stappen.splice(fromIdx,1);
+  let ins=toIdx;
+  if(fromSd===toSd&&fromIdx<toIdx)ins=toIdx-1;
+  if(ins<0)ins=0;if(ins>dst.stappen.length)ins=dst.stappen.length;
+  dst.stappen.splice(ins,0,moved);
   try{await dbUpdate(pid,{steps:p.steps});await reload();}catch(e){showError(e.message);}
 }
 async function addSub(pid,titel){
