@@ -64,6 +64,12 @@
   .group-h .dot{width:9px;height:9px}
   .group-h.filled{color:#fff;border-left-width:1px}
   .group-h.filled .count{color:rgba(255,255,255,.78)}
+  .subgroup-h{display:flex;align-items:center;gap:7px;margin:15px 0 7px 3px;font-size:12.5px;font-weight:600;color:var(--faint)}
+  .subgroup-h .count{color:var(--faint);font-weight:500;letter-spacing:0;text-transform:none}
+  .subgroup-h .dot{width:8px;height:8px}
+  .statusblock{margin-bottom:8px}
+  .statusbanner{position:sticky;top:8px;z-index:6;display:flex;align-items:center;gap:12px;margin:26px 0 14px;padding:14px 18px;border-radius:13px;font-size:18px;font-weight:700;letter-spacing:-.2px;color:#fff;box-shadow:var(--shadow)}
+  .statusbanner .count{font-size:14px;font-weight:600;color:rgba(255,255,255,.82)}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 17px;margin-bottom:11px;box-shadow:var(--shadow);transition:border-color .12s}
   .card:hover{border-color:#d6deea}
@@ -201,7 +207,7 @@
       <input id="search" type="text" placeholder="Zoek op project of toelichting...">
     </div>
     <select id="portFilter"><option value="">Alle portefeuilles</option></select>
-    <select id="groupBy"><option value="port">Groeperen op portefeuille</option><option value="fase">Groeperen op fase</option></select>
+    <select id="groupBy"><option value="status">Groeperen op status</option><option value="port">Groeperen op portefeuille</option></select>
     <label class="recent"><input type="checkbox" id="recentChk">Recent gewijzigd</label>
     <button class="btn btn-primary" id="addBtn">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
@@ -376,39 +382,68 @@ function renderBoard(){
 
   const sortFn=(a,b)=>new Date(b.updated_at)-new Date(a.updated_at);
   let html='';
-  if(groupBy==='port'){
+  const portGroup=(arr)=>{
+    let out='';
+    const present=[...new Set(arr.map(p=>p.portefeuille))];
+    const ordered=[...PORTEFEUILLES.filter(x=>present.includes(x)),...present.filter(x=>!PORTEFEUILLES.includes(x)).sort()];
+    ordered.forEach(port=>{
+      const sub=arr.filter(p=>p.portefeuille===port).sort(sortFn);
+      if(!sub.length)return;
+      out+=`<div class="subgroup-h"><span class="dot" style="background:${portColor(port)}"></span>${esc(port)} <span class="count">(${sub.length})</span></div>${cardsHtml(sub,false,false,false,true)}`;
+    });
+    return out;
+  };
+  if(groupBy==='status'){
+    const BANNERS=[
+      {label:'Lopende projecten',color:'--loopt',test:p=>p.fase==='loopt'&&!p.on_hold},
+      {label:'Nazorg en adoptie',color:'--nazorg',test:p=>p.fase==='nazorg'&&!p.on_hold},
+      {label:'Tijdelijk on hold',color:'--onhold',test:p=>p.on_hold,hideHold:true},
+      {label:'Op planning',color:'--planning',test:p=>p.fase==='planning'&&!p.on_hold},
+      {label:'Afgerond',color:'--afgerond',test:p=>p.fase==='afgerond'&&!p.on_hold}
+    ];
+    BANNERS.forEach(b=>{
+      const grp=list.filter(b.test);
+      if(!grp.length)return;
+      let inner='';
+      const present=[...new Set(grp.map(p=>p.portefeuille))];
+      const ordered=[...PORTEFEUILLES.filter(x=>present.includes(x)),...present.filter(x=>!PORTEFEUILLES.includes(x)).sort()];
+      ordered.forEach(port=>{
+        const sub=grp.filter(p=>p.portefeuille===port).sort(sortFn);
+        if(!sub.length)return;
+        inner+=`<div class="subgroup-h"><span class="dot" style="background:${portColor(port)}"></span>${esc(port)} <span class="count">(${sub.length})</span></div>${cardsHtml(sub,false,false,false,!b.hideHold)}`;
+      });
+      html+=`<div class="statusblock"><div class="statusbanner" style="background:var(${b.color})">${b.label} <span class="count">(${grp.length})</span></div>${inner}</div>`;
+    });
+  }else{
     const present=[...new Set(list.map(p=>p.portefeuille))];
     const ordered=[...PORTEFEUILLES.filter(x=>present.includes(x)),...present.filter(x=>!PORTEFEUILLES.includes(x)).sort()];
     ordered.forEach(port=>{
-      const faseRank=k=>{const i=ORDER.indexOf(k);return i<0?99:i;};
-      const grp=list.filter(p=>p.portefeuille===port).sort((a,b)=>faseRank(a.fase)-faseRank(b.fase)||new Date(b.updated_at)-new Date(a.updated_at));
+      const grp=list.filter(p=>p.portefeuille===port);
       if(!grp.length)return;
-      html+=`<div class="group">${groupHeader(port,grp.length,portColor(port),true)}${cardsHtml(grp,false)}</div>`;
-    });
-  }else if(statusFilter==='onhold'){
-    html+=cardsHtml(list.sort(sortFn),true);
-  }else{
-    ORDER.forEach(k=>{
-      const grp=list.filter(p=>p.fase===k).sort(sortFn);
-      if(!grp.length)return;
-      const s=FASES[k];
-      html+=`<div class="group">${groupHeader(s.label,grp.length,`var(${s.c})`)}${cardsHtml(grp,true)}</div>`;
+      let inner='';
+      ORDER.forEach(fk=>{
+        const sub=grp.filter(p=>p.fase===fk&&!p.on_hold).sort(sortFn);
+        if(sub.length){const fs=FASES[fk];inner+=`<div class="subgroup-h"><span class="dot" style="background:var(${fs.c})"></span>${fs.label} <span class="count">(${sub.length})</span></div>${cardsHtml(sub,false,false,false,true)}`;}
+      });
+      const held=grp.filter(p=>p.on_hold).sort(sortFn);
+      if(held.length){inner+=`<div class="subgroup-h"><span class="dot" style="background:var(--onhold)"></span>Tijdelijk on hold <span class="count">(${held.length})</span></div>${cardsHtml(held,false,false,false,false)}`;}
+      html+=`<div class="group">${groupHeader(port,grp.length,portColor(port),true)}${inner}</div>`;
     });
   }
   board.innerHTML=html;
   wireBoard(board);
 }
 
-function cardsHtml(arr,edge){
+function cardsHtml(arr,edge,showFasePill,showPortChip,showOnHold){
   return arr.map(p=>{
     const s=FASES[p.fase]||FASES.loopt;
     const cardStyle=edge?` style="border-left:4px solid ${portColor(p.portefeuille)}"`:'';
+    let top='';
+    if(showFasePill!==false)top+=`<span class="pill" style="color:var(${s.c});background:var(${s.bg})"><span class="dot" style="background:var(${s.c})"></span>${s.label}</span>`;
+    if(p.on_hold&&showOnHold!==false)top+=`<span class="pill" style="color:var(--onhold);background:var(--onhold-bg)"><span class="dot" style="background:var(--onhold)"></span>On hold</span>`;
+    if(showPortChip!==false)top+=`<span class="chip">${esc(p.portefeuille)}</span>`;
     return `<div class="card"${cardStyle}>
-      <div class="card-top">
-        <span class="pill" style="color:var(${s.c});background:var(${s.bg})"><span class="dot" style="background:var(${s.c})"></span>${s.label}</span>
-        ${p.on_hold?`<span class="pill" style="color:var(--onhold);background:var(--onhold-bg)"><span class="dot" style="background:var(--onhold)"></span>On hold</span>`:''}
-        <span class="chip">${esc(p.portefeuille)}</span>
-      </div>
+      ${top?`<div class="card-top">${top}</div>`:''}
       <h3>${esc(p.naam)}</h3>
       ${p.notitie?`<div class="body">${esc(p.notitie)}</div>`:''}
       ${p.on_hold&&p.on_hold_reden?`<div class="sub-note sub-onhold"><span class="lbl">Reden on hold</span>${esc(p.on_hold_reden)}</div>`:''}
