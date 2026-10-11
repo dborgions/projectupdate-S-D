@@ -127,7 +127,10 @@
   .steps-body{margin-top:6px}
   .subdoel{margin-top:2px}
   .subdoel.is-titled{margin-top:11px}
-  .subdoel-h{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;background:#eaf0f6;font-size:13px;font-weight:600;color:var(--ink)}
+  .subdoel-h{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:8px;background:#eaf0f6;font-size:13px;font-weight:600;color:var(--ink);cursor:pointer}
+  .subdoel-h:hover{background:#e2eaf3}
+  .subdoel-h .chev{flex:none;color:var(--muted)}
+  .subdoel-h.open .chev{transform:rotate(180deg)}
   .subdoel-h .sd-title{flex:1;cursor:text;border-radius:5px;padding:1px 4px}
   .subdoel-h .sd-title:hover{background:#dce6f1}
   .subdoel-h .sd-title-edit{flex:1;font:inherit;font-size:13px;font-weight:600;border:1px solid var(--brand);border-radius:6px;padding:3px 7px;color:var(--ink);background:#fff;outline:none}
@@ -296,7 +299,7 @@ const PORTEFEUILLES=['HR','Marketing','Facilities','Opleiden','Automations','Dat
 const PORTCOLORS={'HR':'#7b5ea7','Marketing':'#c0567a','Facilities':'#5a8f7b','Opleiden':'#8a8f3c','Automations':'#5b63b5','Data':'#3f9aa8','Innovatie':'#c76b4a','Wagenpark':'#6b7280','Jobboards':'#a05195','Activiteiten':'#c99a2e','Website/Welder':'#4e8d6e','Intern Recruitment':'#8c6d46'};
 function portColor(p){return PORTCOLORS[p]||'#8a94a4';}
 
-let projects=[], editId=null, statusFilter='', expanded=new Set(), editor='', dragSrc=null, editingStep=false;
+let projects=[], editId=null, statusFilter='', expanded=new Set(), editor='', dragSrc=null, editingStep=false, subState={};
 
 /* ---------- helpers ---------- */
 const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
@@ -489,19 +492,30 @@ function stepRow(p,sd,s,i){
     <span class="x" data-proj="${p.id}" data-sub="${sd.id}" data-step="${s.id}" title="Stap verwijderen">&times;</span>
   </div>`;
 }
+function subOpen(sd){
+  const st=sd.stappen||[],done=st.filter(x=>x.status==='done').length,total=st.length;
+  const defOpen=!(total>0&&done===total);
+  return (sd.id in subState)?subState[sd.id]:defOpen;
+}
 function renderSubdoel(p,sd){
-  const titled=!!sd.titel, st=sd.stappen||[], done=st.filter(x=>x.status==='done').length;
+  const titled=!!sd.titel, st=sd.stappen||[], done=st.filter(x=>x.status==='done').length, total=st.length;
+  const isOpen = titled ? subOpen(sd) : true;
   let h='';
   if(titled){
-    h=`<div class="subdoel-h">
+    h=`<div class="subdoel-h ${isOpen?'open':''}" data-togglesub="${p.id}|||${sd.id}">
+      ${chev()}
       <span class="sd-title" data-editsub="${p.id}|||${sd.id}" title="Klik om te bewerken">${esc(sd.titel)}</span>
-      <span class="sd-prog">${done}/${st.length}</span>
+      <span class="sd-prog">${done}/${total}</span>
       <span class="x" data-delsub="${p.id}|||${sd.id}" title="Subdoel verwijderen">&times;</span>
     </div>`;
   }
-  const items=st.map((s,i)=>stepRow(p,sd,s,i)).join('');
-  const add=`<div class="step-add"><span class="plus">+</span><input type="text" data-addstep="${p.id}|||${sd.id}" placeholder="Stap toevoegen, druk op enter"></div>`;
-  return `<div class="subdoel ${titled?'is-titled':''}">${h}<div class="steps-list">${items}${add}</div></div>`;
+  let inner='';
+  if(isOpen){
+    const items=st.map((s,i)=>stepRow(p,sd,s,i)).join('');
+    const add=`<div class="step-add"><span class="plus">+</span><input type="text" data-addstep="${p.id}|||${sd.id}" placeholder="Stap toevoegen, druk op enter"></div>`;
+    inner=`<div class="steps-list">${items}${add}</div>`;
+  }
+  return `<div class="subdoel ${titled?'is-titled':''}">${h}${inner}</div>`;
 }
 function buildSteps(p){
   const all=allStappen(p);
@@ -554,6 +568,7 @@ function wireBoard(board){
   board.querySelectorAll('.step .x').forEach(x=>x.onclick=e=>{e.stopPropagation();delStep(x.dataset.proj,x.dataset.sub,x.dataset.step);});
   board.querySelectorAll('[data-addstep]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim()){const parts=inp.dataset.addstep.split('|||');addStep(parts[0],parts[1]||'',inp.value);}});
   board.querySelectorAll('[data-addsub]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim())addSub(inp.dataset.addsub,inp.value);});
+  board.querySelectorAll('[data-togglesub]').forEach(el=>el.onclick=e=>{const p=el.dataset.togglesub.split('|||');toggleSub(p[0],p[1]);});
   board.querySelectorAll('[data-delsub]').forEach(x=>x.onclick=e=>{e.stopPropagation();const p=x.dataset.delsub.split('|||');delSub(p[0],p[1]);});
   board.querySelectorAll('[data-editsub]').forEach(t=>t.onclick=e=>{e.stopPropagation();const p=t.dataset.editsub.split('|||');startEditSub(t,p[0],p[1]);});
 }
@@ -601,6 +616,11 @@ async function delSub(pid,sdid){
   if(!confirm(`Subdoel "${sd.titel}"${n?' met '+n+' stappen':''} verwijderen?`))return;
   p.steps=subs(p).filter(x=>x.id!==sdid);
   try{await dbUpdate(pid,{steps:p.steps});await reload();}catch(e){showError(e.message);}
+}
+function toggleSub(pid,sdid){
+  const p=projects.find(x=>x.id===pid),sd=findSub(p,sdid);
+  subState[sdid]=!subOpen(sd);
+  renderBoard();
 }
 function startEditStep(stepEl,pid,sdid,sid){
   if(editingStep)return;editingStep=true;
