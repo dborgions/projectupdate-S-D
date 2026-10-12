@@ -129,6 +129,11 @@
   .step.dragging{opacity:.4}
   .step.dragover{box-shadow:inset 0 2px 0 var(--brand)}
   .step-date{font-size:11.5px;color:var(--faint);flex:none;white-space:nowrap}
+  .step-cal{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--faint);flex:none;white-space:nowrap;cursor:pointer;padding:2px 6px;border-radius:5px;opacity:.55}
+  .step:hover .step-cal{opacity:1}
+  .step-cal.has{color:var(--loopt);font-weight:600;opacity:1}
+  .step-cal:hover{background:#eef2f7;color:var(--loopt)}
+  .date-inp{font:inherit;font-size:12px;border:1px solid var(--brand);border-radius:6px;padding:2px 6px;color:var(--ink);flex:none}
   .step.done .txt{color:var(--faint);text-decoration:line-through}
   .step.bezig .txt{color:var(--loopt);font-weight:600}
   .step .x{opacity:0;color:var(--faint);font-size:17px;line-height:1;padding:0 3px;border-radius:5px;cursor:pointer}
@@ -537,7 +542,9 @@ function stepRow(p,sd,s,i){
     <span class="grip" title="Sleep om te ordenen"><svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor"><circle cx="2" cy="3" r="1.3"/><circle cx="8" cy="3" r="1.3"/><circle cx="2" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="2" cy="13" r="1.3"/><circle cx="8" cy="13" r="1.3"/></svg></span>
     <span class="box" role="button" tabindex="0" title="Klik om af te vinken">${box}</span>
     <span class="txt" title="Klik om te bewerken">${esc(s.tekst)}</span>
-    ${s.status==='done'&&s.done_op?`<span class="step-date">${fmtDate(s.done_op)}</span>`:''}
+    ${s.status==='done'
+      ? (s.done_op?`<span class="step-date">${fmtDate(s.done_op)}</span>`:'')
+      : `<span class="step-cal ${s.datum?'has':''}" data-datecell data-proj="${p.id}" data-sub="${sd.id}" data-step="${s.id}" title="Datum plannen">${s.datum?`<span>${fmtDate(s.datum)}</span>`:''}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>`}
     <span class="x" data-proj="${p.id}" data-sub="${sd.id}" data-step="${s.id}" title="Stap verwijderen">&times;</span>
   </div>`;
 }
@@ -615,6 +622,7 @@ function wireBoard(board){
     el.ondrop=e=>{if(!dragSrc||dragSrc.pid!==pid)return;e.preventDefault();el.classList.remove('dragover');const toIdx=+el.dataset.idx,toSd=el.dataset.sub,d=dragSrc;dragSrc=null;moveStep(d.pid,d.sdid,d.idx,toSd,toIdx);};
   });
   board.querySelectorAll('.step .x').forEach(x=>x.onclick=e=>{e.stopPropagation();delStep(x.dataset.proj,x.dataset.sub,x.dataset.step);});
+  board.querySelectorAll('[data-datecell]').forEach(el=>el.onclick=e=>{e.stopPropagation();openStepDate(el,el.dataset.proj,el.dataset.sub,el.dataset.step);});
   board.querySelectorAll('[data-addstep]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim()){const parts=inp.dataset.addstep.split('|||');addStep(parts[0],parts[1]||'',inp.value);}});
   board.querySelectorAll('[data-addsub]').forEach(inp=>inp.onkeydown=e=>{if(e.key==='Enter'&&inp.value.trim())addSub(inp.dataset.addsub,inp.value);});
   board.querySelectorAll('[data-togglesub]').forEach(el=>el.onclick=e=>{const p=el.dataset.togglesub.split('|||');toggleSub(p[0],p[1]);});
@@ -698,6 +706,16 @@ function startEditStep(stepEl,pid,sdid,sid){
   };
   inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();finish(true);}else if(e.key==='Escape'){e.preventDefault();finish(false);}};
   inp.onblur=()=>finish(true);
+}
+function openStepDate(el,pid,sdid,sid){
+  const p=projects.find(x=>x.id===pid),sd=findSub(p,sdid),s=sd.stappen.find(x=>x.id===sid);
+  const inp=document.createElement('input');
+  inp.type='date';inp.className='date-inp';if(s.datum)inp.value=s.datum;
+  el.replaceWith(inp);inp.focus();
+  try{inp.showPicker&&inp.showPicker();}catch(e){}
+  let fin=false;
+  const finish=async()=>{if(fin)return;fin=true;s.datum=inp.value||'';try{await dbUpdate(pid,{steps:p.steps});}catch(e){showError(e.message);}await reload();};
+  inp.onchange=finish;inp.onblur=finish;
 }
 function startEditSub(titleEl,pid,sdid){
   if(editingStep)return;editingStep=true;
