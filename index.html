@@ -266,7 +266,8 @@
       </div>
       <div class="field">
         <label for="f-verant">Projectverantwoordelijke</label>
-        <input id="f-verant" type="text" placeholder="Wie trekt dit project?">
+        <div class="hint">Meerdere? Scheid de namen met een komma.</div>
+        <input id="f-verant" type="text" placeholder="Bijv. Dave Borgions, Niki">
       </div>
       <div class="field">
         <label for="f-notitie">Toelichting</label>
@@ -322,6 +323,7 @@ function portColor(p){return PORTCOLORS[p]||'#8a94a4';}
 const OWNERCOLORS=['#3b73ad','#7b5ea7','#c0567a','#3f9784','#c07814','#5b63b5','#3f9aa8','#c76b4a','#6b7280','#a05195'];
 function ownerColor(n){let h=0;for(let i=0;i<n.length;i++)h=(h*31+n.charCodeAt(i))>>>0;return OWNERCOLORS[h%OWNERCOLORS.length];}
 function initials(n){n=(n||'').trim();if(!n)return '?';const p=n.split(/\s+/);return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase();}
+function ownersOf(p){return (p.verantwoordelijke||'').split(',').map(x=>x.trim()).filter(Boolean);}
 
 let projects=[], editId=null, statusFilter='', ownerFilter='', expanded=new Set(), editor='', dragSrc=null, editingStep=false, subState={};
 
@@ -393,7 +395,7 @@ function renderSummary(){
 function renderOwners(){
   const el=document.getElementById('ownerbar');
   const counts={};
-  projects.forEach(p=>{const v=(p.verantwoordelijke||'').trim();if(v)counts[v]=(counts[v]||0)+1;});
+  projects.forEach(p=>ownersOf(p).forEach(v=>counts[v]=(counts[v]||0)+1));
   const names=Object.keys(counts).sort((a,b)=>a.localeCompare(b));
   if(!names.length){el.innerHTML='';return;}
   el.innerHTML='<span class="ownerbar-lbl">Verantwoordelijke</span>'+names.map(n=>`<button class="ownerchip ${ownerFilter===n?'sel':''}" data-owner="${esc(n)}"><span class="owner-ini" style="background:${ownerColor(n)}">${esc(initials(n))}</span>${esc(n)} <span class="c">${counts[n]}</span></button>`).join('');
@@ -409,7 +411,7 @@ function renderBoard(){
     if(statusFilter==='onhold'){if(!p.on_hold)return false;}
     else if(statusFilter&&p.fase!==statusFilter)return false;
     if(pf&&p.portefeuille!==pf)return false;
-    if(ownerFilter&&(p.verantwoordelijke||'')!==ownerFilter)return false;
+    if(ownerFilter&&!ownersOf(p).includes(ownerFilter))return false;
     if(recentOnly&&!isRecent(p))return false;
     if(q&&!(p.naam.toLowerCase().includes(q)||(p.notitie||'').toLowerCase().includes(q)))return false;
     return true;
@@ -476,7 +478,7 @@ function cardsHtml(arr,edge,showFasePill,showPortChip,showOnHold){
     const s=FASES[p.fase]||FASES.loopt;
     const cardStyle=edge?` style="border-left:4px solid ${portColor(p.portefeuille)}"`:'';
     let top='';
-    if(p.verantwoordelijke)top+=`<span class="owner"><span class="owner-ini" style="background:${ownerColor(p.verantwoordelijke)}">${esc(initials(p.verantwoordelijke))}</span>${esc(p.verantwoordelijke)}</span>`;
+    ownersOf(p).forEach(nm=>{top+=`<span class="owner"><span class="owner-ini" style="background:${ownerColor(nm)}">${esc(initials(nm))}</span>${esc(nm)}</span>`;});
     if(showFasePill!==false)top+=`<span class="pill" style="color:var(${s.c});background:var(${s.bg})"><span class="dot" style="background:var(${s.c})"></span>${s.label}</span>`;
     if(p.on_hold&&showOnHold!==false)top+=`<span class="pill" style="color:var(--onhold);background:var(--onhold-bg)"><span class="dot" style="background:var(--onhold)"></span>On hold</span>`;
     if(showPortChip!==false)top+=`<span class="chip">${esc(p.portefeuille)}</span>`;
