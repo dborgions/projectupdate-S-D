@@ -248,8 +248,90 @@
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
+
+<style id="soma-huisstijl">
+/* ───────── SOMA huisstijl, gelijk aan het 100 dagen onboarding dashboard ─────────
+   Brandbook 2025: hoekig in plaats van afgerond, SOMA Group blauw als drager,
+   oranje voor actie, titels in hoofdletters. */
+:root{ --radius:2px; --oranje:#f18825; }
+
+/* Hoekig maken. De echte cirkels (avatars, stipjes, stappen) blijven rond. */
+.unit-tag,.banner,.brandmark,.who input,.kijkbadge,.ownerchip,.owner,.stat,
+.search input,.controls select,.recent,.btn,.group-h,.unittile,.statusbanner,
+.port-sub,.card,.pill,.chip,.sub-note,.progress-track,.progress-fill,.step,
+.step .txt,.step .txt-edit,.step-cal,.date-inp,.step .x,.subdoel-h,
+.subdoel-h .sd-title,.subdoel-h .sd-title-edit,.subdoel-h .x,.modal,.pick,
+.field input,.field select,.field textarea,.login-cont,.login-names button{
+  border-radius:2px;
+}
+
+/* Knoppen volgens het brandbook: rechthoekig, hoofdletters, gevuld blauw.
+   Bij hover wit met een lijn van 1px. */
+.btn{font-weight:700;letter-spacing:1.1px;text-transform:uppercase;font-size:11.5px;padding:10px 15px}
+.btn-primary{background:var(--brand);color:#fff;border:none}
+.btn-primary:hover{background:#fff;color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand)}
+
+/* De blauwe streep bovenaan vervalt; de kopband neemt het over. */
+.accentbar{display:none}
+.wrap{padding-top:18px}
+
+/* Kopband: de foto met de blauwe laag, zoals op het inlogscherm. */
+.soma-band{
+  background:#11142e url('soma/lasser.jpg') 56% 42% / cover no-repeat;
+}
+.soma-band-laag{
+  background:linear-gradient(100deg, rgba(23,26,64,.96) 0%, rgba(23,26,64,.86) 34%, rgba(20,23,56,.42) 100%);
+  border-bottom:3px solid var(--oranje);
+}
+.soma-band-inhoud{
+  max-width:1080px;margin:0 auto;padding:28px 22px 24px;
+  display:flex;justify-content:space-between;align-items:flex-end;gap:16px;
+}
+.soma-band-logo{height:26px;display:block;margin-bottom:18px}
+.soma-band-kicker{
+  color:var(--oranje);font-size:11px;font-weight:700;letter-spacing:2.6px;
+  text-transform:uppercase;margin-bottom:9px;
+}
+.soma-band-titel{
+  color:#fff;font-size:38px;font-weight:700;line-height:.98;
+  text-transform:uppercase;letter-spacing:-.3px;margin:0;
+}
+.soma-band-cijfer{font-size:46px;font-weight:700;color:var(--oranje);line-height:1}
+.soma-band-label{
+  font-size:9.5px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;
+  color:rgba(255,255,255,.65);margin-top:5px;text-align:right;
+}
+
+/* De naam en het logo staan nu in de band. */
+.brandblock{display:none}
+header.top{justify-content:flex-end;margin-bottom:16px}
+
+@media (max-width:640px){
+  .soma-band-inhoud{padding:20px 16px 18px}
+  .soma-band-titel{font-size:25px}
+  .soma-band-kicker{font-size:10px;letter-spacing:2px;margin-bottom:6px}
+  .soma-band-logo{height:21px;margin-bottom:13px}
+  .soma-band-cijfer{font-size:29px}
+  .soma-band-label{font-size:8.5px;letter-spacing:1px}
+}
+</style>
 </head>
 <body>
+<div class="soma-band">
+  <div class="soma-band-laag">
+    <div class="soma-band-inhoud">
+      <div>
+        <img class="soma-band-logo" src="soma/soma-logo-wit.png" alt="SOMA Group">
+        <div class="soma-band-kicker">Staff &amp; Development</div>
+        <h1 class="soma-band-titel">Projectupdate</h1>
+      </div>
+      <div>
+        <div class="soma-band-cijfer" id="bandTeller"></div>
+        <div class="soma-band-label" id="bandLabel"></div>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="wrap">
   <div class="accentbar"></div>
   <div id="banner"></div>
@@ -505,6 +587,12 @@ function renderSummary(){
     </button>`;
   el.innerHTML=html;
   el.querySelectorAll('.stat').forEach(b=>b.onclick=()=>{statusFilter=statusFilter===b.dataset.s?'':b.dataset.s;renderSummary();renderBoard();});
+  // Teller in de kopband: het aantal projecten dat nu loopt.
+  const teller=document.getElementById('bandTeller');
+  if(teller){
+    teller.textContent=projects.length;
+    document.getElementById('bandLabel').textContent=projects.length===1?'project':'projecten';
+  }
 }
 function renderOwners(){
   const el=document.getElementById('ownerbar');
