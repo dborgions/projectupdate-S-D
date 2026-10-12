@@ -314,14 +314,53 @@ header.top{justify-content:flex-end;margin-bottom:16px}
   .soma-band-cijfer{font-size:29px}
   .soma-band-label{font-size:8.5px;letter-spacing:1px}
 }
+
+/* Blauwe balk bovenaan met het logo, zoals in het onboardingdashboard.
+   Het logo staat daardoor nog maar één keer op de pagina. */
+.soma-balk{background:var(--brand)}
+.soma-balk-inhoud{
+  max-width:1080px;margin:0 auto;padding:14px 22px;
+  display:flex;justify-content:space-between;align-items:center;gap:14px;
+}
+.soma-balk-logo{height:21px;display:block;flex:none}
+.soma-balk-rechts{
+  display:flex;align-items:center;gap:10px;
+  color:rgba(255,255,255,.8);font-size:12.5px;white-space:nowrap;
+}
+.soma-balk-rechts strong{color:#fff;font-weight:600}
+.soma-balk-rechts .who{color:rgba(255,255,255,.8);font-size:12.5px;gap:8px}
+.soma-balk-rechts .who-lbl{color:rgba(255,255,255,.6)}
+.soma-balk-rechts .linkbtn{
+  background:none;border:1px solid rgba(255,255,255,.35);border-radius:3px;
+  color:#fff;font:inherit;font-size:10.5px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;padding:6px 11px;cursor:pointer;
+}
+.soma-balk-rechts .linkbtn:hover{background:rgba(255,255,255,.12)}
+.soma-balk-rechts .kijkbadge{
+  background:rgba(255,255,255,.14);color:#fff;font-size:10.5px;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;padding:6px 11px;border-radius:3px;
+}
+header.top{display:none}
+@media (max-width:640px){
+  .soma-balk-inhoud{padding:12px 16px}
+  .soma-balk-logo{height:18px}
+  .soma-balk-rechts{font-size:11.5px;gap:8px}
+  .soma-balk-rechts .who-lbl{display:none}
+  .soma-balk-rechts .linkbtn{padding:5px 9px;font-size:10px}
+}
 </style>
 </head>
 <body>
+<div class="soma-balk">
+  <div class="soma-balk-inhoud">
+    <img class="soma-balk-logo" src="soma/soma-logo-wit.png" alt="SOMA Group">
+    <div class="soma-balk-rechts" id="soma-balk-rechts"></div>
+  </div>
+</div>
 <div class="soma-band">
   <div class="soma-band-laag">
     <div class="soma-band-inhoud">
       <div>
-        <img class="soma-band-logo" src="soma/soma-logo-wit.png" alt="SOMA Group">
         <div class="soma-band-kicker">Staff &amp; Development</div>
         <h1 class="soma-band-titel">Projectupdate</h1>
       </div>
@@ -587,6 +626,14 @@ function renderSummary(){
     </button>`;
   el.innerHTML=html;
   el.querySelectorAll('.stat').forEach(b=>b.onclick=()=>{statusFilter=statusFilter===b.dataset.s?'':b.dataset.s;renderSummary();renderBoard();});
+  // De wie-ben-je en de kijkmodus horen in de blauwe balk bovenaan.
+  const balk=document.getElementById('soma-balk-rechts');
+  if(balk && !balk.dataset.gevuld){
+    const who=document.getElementById('whoBox'), kijk=document.getElementById('kijkBox');
+    if(who) balk.appendChild(who);
+    if(kijk) balk.appendChild(kijk);
+    balk.dataset.gevuld='1';
+  }
   // Teller in de kopband: het aantal projecten dat nu loopt.
   const teller=document.getElementById('bandTeller');
   if(teller){
