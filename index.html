@@ -345,16 +345,18 @@ header.top{display:none}
 /* Logo links van de projectnaam, of een vierkantje met de initialen. */
 .card-kop{display:flex;align-items:center;gap:12px}
 .card-kop h3{margin:0}
-.card-logo,.card-ini{width:38px;height:38px;flex:none;border-radius:2px;display:flex;align-items:center;justify-content:center;overflow:hidden}
-.card-logo{border:1px solid var(--line);background:#fff}
+.card-logo{width:38px;height:38px;flex:none;border-radius:2px;display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid var(--line);background:#fff}
 .card-logo img{max-width:100%;max-height:100%;object-fit:contain;display:block}
-.card-ini{color:#fff;font-weight:700;font-size:13px;letter-spacing:.5px}
+/* Het beeldmerk vult het vierkantje helemaal, want de kleur ervan is de labelkleur. */
+.card-merk{border-color:transparent}
+.card-merk img{width:100%;height:100%;object-fit:cover}
 
 /* Logo kiezen in het bewerkscherm. */
 .logo-rij{display:flex;align-items:center;gap:14px}
 .logo-voorbeeld{width:52px;height:52px;flex:none;border:1px solid var(--line);background:#fff;border-radius:2px;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .logo-voorbeeld img{max-width:100%;max-height:100%;object-fit:contain;display:block}
-.logo-voorbeeld.leeg span{font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.6px;text-align:center;line-height:1.3}
+.logo-voorbeeld.leeg{border-color:transparent}
+.logo-voorbeeld.leeg img{width:100%;height:100%;object-fit:cover}
 .logo-knoppen{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .logo-kies{cursor:pointer}
 .logo-melding{font-size:12px;color:var(--muted);flex-basis:100%}
@@ -779,7 +781,8 @@ function cardsHtml(arr,edge,showFasePill,showPortChip,showOnHold){
 // Logo van het project, of een vierkantje met de initialen in de kleur van de portefeuille.
 function projectLogo(p){
   if(p.logo_url)return `<span class="card-logo"><img src="${esc(p.logo_url)}" alt=""></span>`;
-  return `<span class="card-ini" style="background:${portColor(p.portefeuille)}">${esc(initials(p.naam))}</span>`;
+  const sleutel=['group','academy','pd'].includes(p.unit)?p.unit:'group';
+  return `<span class="card-logo card-merk"><img src="soma/beeldmerk-${sleutel}.png" alt=""></span>`;
 }
 function groupHeader(label,count,color,filled){
   if(filled)return `<div class="group-h filled" style="background:${color};border-color:${color}"><span class="dot" style="background:rgba(255,255,255,.92)"></span>${esc(label)} <span class="count">(${count})</span></div>`;
@@ -1050,7 +1053,12 @@ function toonLogoVoorbeeld(){
   const el=document.getElementById('f-logo-voorbeeld');
   if(!el)return;
   if(modalLogo){el.innerHTML=`<img src="${esc(modalLogo)}" alt="">`;el.classList.remove('leeg');}
-  else{el.innerHTML='<span>geen logo</span>';el.classList.add('leeg');}
+  else{
+    const u=document.getElementById('f-unit');
+    const sleutel=u&&['group','academy','pd'].includes(u.value)?u.value:'group';
+    el.innerHTML=`<img src="soma/beeldmerk-${sleutel}.png" alt="">`;
+    el.classList.add('leeg');
+  }
 }
 
 // Het bestand gaat naar de opslagmap 'projectlogos' in Supabase; we bewaren alleen het adres.
