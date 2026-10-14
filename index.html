@@ -342,6 +342,38 @@ header.top{justify-content:flex-end;margin-bottom:16px}
 }
 header.top{display:none}
 
+/* De kop verschijnt alleen op papier. */
+.printkop{display:none}
+
+@media print{
+  @page{size:A4 portrait;margin:14mm 12mm}
+  body{background:#fff}
+  .soma-balk,.soma-band,.controls,.ownerbar,.unitbar,.greet,.banner,
+  .card-foot .linkbtn,.card-foot .spacer,.modal,.overlay,.login,.summary,
+  .stappen-h,.chev{display:none !important}
+  .wrap{max-width:100%;padding:0}
+  .printkop{
+    display:flex;align-items:center;gap:14px;
+    border-bottom:3px solid var(--oranje);padding-bottom:12px;margin-bottom:18px;
+  }
+  .printkop-logo{width:42px;height:42px;flex:none;display:block}
+  .printkop-boven{font-size:9pt;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:var(--brand)}
+  .printkop-titel{font-size:20pt;font-weight:700;text-transform:uppercase;line-height:1;color:var(--brand)}
+  .printkop-stand{font-size:8.5pt;color:var(--muted);margin-top:5px}
+  .printkop-rechts{margin-left:auto;text-align:right}
+  .printkop-maand{font-size:11pt;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--oranje)}
+  .printkop-filter{font-size:8pt;color:var(--muted);margin-top:3px}
+  .printkop-datum{font-size:7.5pt;color:var(--faint);margin-top:2px}
+  .group-h{break-after:avoid;page-break-after:avoid;margin-top:12px;padding:8px 12px;font-size:10pt}
+  .port-sub{break-after:avoid;page-break-after:avoid}
+  .card{break-inside:avoid;page-break-inside:avoid;border:1px solid var(--line);box-shadow:none;margin-bottom:8px}
+  .card h3{font-size:12pt}
+  .card .body{font-size:9pt}
+  .card-logo{width:34px;height:34px}
+  .card-foot{font-size:7.5pt}
+  a{text-decoration:none;color:inherit}
+}
+
 /* Logo links van de projectnaam, of een vierkantje met de initialen. */
 .card-kop{display:flex;align-items:center;gap:14px}
 .card-kop h3{margin:0}
@@ -390,6 +422,15 @@ header.top{display:none}
     </div>
   </div>
 </div>
+<div class="printkop">
+  <img class="printkop-logo" src="soma/beeldmerk-group.png" alt="">
+  <div class="printkop-tekst">
+    <div class="printkop-boven">SOMA Group</div>
+    <div class="printkop-titel">Projectupdate</div>
+    <div class="printkop-stand"></div>
+  </div>
+  <div class="printkop-rechts" id="printkopRechts"></div>
+</div>
 <div class="wrap">
   <div class="accentbar"></div>
   <div id="banner"></div>
@@ -427,6 +468,7 @@ header.top{display:none}
     <select id="portFilter"><option value="">Alle portefeuilles</option></select>
     <select id="groupBy"><option value="status">Groeperen op status</option><option value="port">Groeperen op portefeuille</option></select>
     <label class="recent"><input type="checkbox" id="recentChk">Recent gewijzigd</label>
+    <button class="btn btn-ghost" id="pdfBtn">PDF maken</button>
     <button class="btn btn-ghost" id="inzageBtn">Wie keek er</button>
     <button class="btn btn-primary" id="addBtn">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
@@ -688,6 +730,8 @@ function renderBoard(){
   const recentOnly=document.getElementById('recentChk').checked;
   const groupBy=document.getElementById('groupBy').value;
   let list=projects.filter(p=>{
+    // In de PDF laten we afgeronde projecten weg, tenzij je er bewust op filtert.
+    if(pdfModus&&p.fase==='afgerond'&&statusFilter!=='afgerond')return false;
     if(statusFilter==='onhold'){if(!p.on_hold)return false;}
     else if(statusFilter&&p.fase!==statusFilter)return false;
     if(pf&&p.portefeuille!==pf)return false;
@@ -764,8 +808,8 @@ function cardsHtml(arr,edge,showFasePill,showPortChip,showOnHold){
       ${p.notitie?`<div class="body">${esc(p.notitie)}</div>`:''}
       ${p.on_hold&&p.on_hold_reden?`<div class="sub-note sub-onhold"><span class="lbl">Reden on hold</span>${esc(p.on_hold_reden)}</div>`:''}
       ${p.fase==='nazorg'&&p.adoptie?`<div class="sub-note sub-adoptie"><span class="lbl">Adoptiefase</span>${esc(p.adoptie)}</div>`:''}
-      ${progressBar(p)}
-      ${buildSteps(p)}
+      ${pdfModus?'':progressBar(p)}
+      ${pdfModus?'':buildSteps(p)}
       <div class="card-foot">
         ${p.deadline?`<span class="meta"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>${esc(p.deadline)}</span>`:''}
         <span class="meta ${isRecent(p)?'recent-flag':''}">Bijgewerkt ${fmtDate(p.updated_at)}${p.updated_by?' door '+esc(p.updated_by):''}</span>
@@ -1048,6 +1092,36 @@ function openModal(id){
   document.getElementById('overlay').classList.add('open');
 }
 let modalLogo='';
+let pdfModus=false;
+
+// De PDF volgt wat er op het scherm staat: dezelfde filters, maar zonder
+// afgeronde projecten, zonder stappen en zonder knoppen.
+function maakPdf(){
+  const maanden=['januari','februari','maart','april','mei','juni','juli','augustus','september','oktober','november','december'];
+  const nu=new Date();
+  const regels=[];
+  const pf=document.getElementById('portFilter').value;
+  if(pf)regels.push('Portefeuille: '+pf);
+  if(unitFilter){const u=UNITS.find(x=>x.key===unitFilter);if(u)regels.push('Onderdeel: '+u.label);}
+  if(ownerFilter)regels.push('Verantwoordelijke: '+ownerFilter);
+  if(statusFilter){const f=FASES[statusFilter];regels.push('Status: '+(statusFilter==='onhold'?'On hold':(f?f.label:statusFilter)));}
+  const telling=ORDER.filter(k=>k!=='afgerond').map(k=>{
+    const n=projects.filter(x=>x.fase===k).length;
+    return n+' '+FASES[k].label.toLowerCase();
+  });
+  const onhold=projects.filter(x=>x.on_hold).length;
+  if(onhold)telling.push(onhold+' on hold');
+  const standEl=document.querySelector('.printkop-stand');
+  if(standEl)standEl.textContent=telling.join(' · ');
+  document.getElementById('printkopRechts').innerHTML=
+    `<div class="printkop-maand">${maanden[nu.getMonth()]} ${nu.getFullYear()}</div>`+
+    (regels.length?`<div class="printkop-filter">${esc(regels.join(' · '))}</div>`:'')+
+    `<div class="printkop-datum">Gemaakt op ${nu.getDate()} ${maanden[nu.getMonth()]} ${nu.getFullYear()}</div>`;
+  pdfModus=true;
+  renderBoard();
+  window.print();
+  setTimeout(()=>{pdfModus=false;renderBoard();},400);
+}
 
 function toonLogoVoorbeeld(){
   const el=document.getElementById('f-logo-voorbeeld');
@@ -1221,6 +1295,8 @@ async function showInzage(){
   document.getElementById('saveModal').onclick=saveProject;
   document.getElementById('f-fase').onchange=toggleConditional;
   document.getElementById('f-onhold').onchange=toggleConditional;
+  const pdfKnop=document.getElementById('pdfBtn');
+  if(pdfKnop)pdfKnop.onclick=maakPdf;
 
   // Logo kiezen, uploaden en weer verwijderen.
   document.getElementById('f-logo').onchange=async(e)=>{
