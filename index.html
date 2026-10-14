@@ -370,6 +370,11 @@ header.top{display:none}
   .card h3{font-size:12pt}
   .card .body{font-size:9pt}
   .card-logo{width:34px;height:34px}
+  .pdf-voortgang{margin-top:7px}
+  .pdf-balk{height:5px;background:var(--line);width:100%}
+  .pdf-balk-vul{height:100%}
+  .pdf-voortgang-tekst{font-size:8pt;color:var(--muted);margin-top:4px}
+  .pdf-voortgang-tekst strong{color:var(--ink)}
   .card-foot{font-size:7.5pt}
   a{text-decoration:none;color:inherit}
 }
@@ -808,7 +813,7 @@ function cardsHtml(arr,edge,showFasePill,showPortChip,showOnHold){
       ${p.notitie?`<div class="body">${esc(p.notitie)}</div>`:''}
       ${p.on_hold&&p.on_hold_reden?`<div class="sub-note sub-onhold"><span class="lbl">Reden on hold</span>${esc(p.on_hold_reden)}</div>`:''}
       ${p.fase==='nazorg'&&p.adoptie?`<div class="sub-note sub-adoptie"><span class="lbl">Adoptiefase</span>${esc(p.adoptie)}</div>`:''}
-      ${pdfModus?'':progressBar(p)}
+      ${pdfModus?pdfVoortgang(p):progressBar(p)}
       ${pdfModus?'':buildSteps(p)}
       <div class="card-foot">
         ${p.deadline?`<span class="meta"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>${esc(p.deadline)}</span>`:''}
@@ -831,6 +836,19 @@ function projectLogo(p){
 function groupHeader(label,count,color,filled){
   if(filled)return `<div class="group-h filled" style="background:${color};border-color:${color}"><span class="dot" style="background:rgba(255,255,255,.92)"></span>${esc(label)} <span class="count">(${count})</span></div>`;
   return `<div class="group-h" style="border-left-color:${color}"><span class="dot" style="background:${color}"></span>${esc(label)} <span class="count">(${count})</span></div>`;
+}
+// In de PDF geen stappenlijst, maar wel in één regel hoever het project staat.
+function pdfVoortgang(p){
+  const all=allStappen(p);
+  if(!all.length)return '';
+  const done=all.filter(s=>s.status==='done').length,total=all.length,pct=Math.round(done/total*100);
+  const col=pct===100?'var(--afgerond)':`var(${(FASES[p.fase]||FASES.loopt).c})`;
+  const c=projSummary(p);
+  const nu=(c&&c.txt&&pct<100)?` · nu: ${esc(c.txt)}`:'';
+  return `<div class="pdf-voortgang">
+    <div class="pdf-balk"><div class="pdf-balk-vul" style="width:${pct}%;background:${col}"></div></div>
+    <div class="pdf-voortgang-tekst"><strong>${pct}%</strong> · ${done} van ${total} stappen afgerond${nu}</div>
+  </div>`;
 }
 function progressBar(p){
   const all=allStappen(p);if(!all.length)return '';
