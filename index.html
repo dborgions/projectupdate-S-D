@@ -341,6 +341,23 @@ header.top{justify-content:flex-end;margin-bottom:16px}
   letter-spacing:1px;text-transform:uppercase;padding:6px 11px;border-radius:3px;
 }
 header.top{display:none}
+
+/* Logo links van de projectnaam, of een vierkantje met de initialen. */
+.card-kop{display:flex;align-items:center;gap:12px}
+.card-kop h3{margin:0}
+.card-logo,.card-ini{width:38px;height:38px;flex:none;border-radius:2px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.card-logo{border:1px solid var(--line);background:#fff}
+.card-logo img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.card-ini{color:#fff;font-weight:700;font-size:13px;letter-spacing:.5px}
+
+/* Logo kiezen in het bewerkscherm. */
+.logo-rij{display:flex;align-items:center;gap:14px}
+.logo-voorbeeld{width:52px;height:52px;flex:none;border:1px solid var(--line);background:#fff;border-radius:2px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.logo-voorbeeld img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.logo-voorbeeld.leeg span{font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.6px;text-align:center;line-height:1.3}
+.logo-knoppen{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo-kies{cursor:pointer}
+.logo-melding{font-size:12px;color:var(--muted);flex-basis:100%}
 @media (max-width:640px){
   .soma-balk-inhoud{padding:12px 16px}
   .soma-balk-logo{height:18px}
@@ -468,6 +485,18 @@ header.top{display:none}
       <div class="field">
         <label for="f-naam">Project</label>
         <input id="f-naam" type="text" placeholder="Naam van het project">
+      </div>
+      <div class="field">
+        <label>Logo</label>
+        <div class="hint">Optioneel. Een vierkant logo werkt het mooist. Zonder logo tonen we de initialen van het project.</div>
+        <div class="logo-rij">
+          <div id="f-logo-voorbeeld" class="logo-voorbeeld"></div>
+          <div class="logo-knoppen">
+            <label class="btn btn-ghost logo-kies">Logo kiezen<input id="f-logo" type="file" accept="image/*" hidden></label>
+            <button type="button" class="linkbtn" id="f-logo-weg">Verwijderen</button>
+            <div class="logo-melding" id="f-logo-melding"></div>
+          </div>
+        </div>
       </div>
       <div class="field">
         <label>Projectverantwoordelijke</label>
@@ -729,7 +758,7 @@ function cardsHtml(arr,edge,showFasePill,showPortChip,showOnHold){
     if(showPortChip!==false)top+=`<span class="chip">${esc(p.portefeuille)}</span>`;
     return `<div class="card"${cardStyle}>
       ${top?`<div class="card-top">${top}</div>`:''}
-      <h3>${esc(p.naam)}</h3>
+      <div class="card-kop">${projectLogo(p)}<h3>${esc(p.naam)}</h3></div>
       ${p.notitie?`<div class="body">${esc(p.notitie)}</div>`:''}
       ${p.on_hold&&p.on_hold_reden?`<div class="sub-note sub-onhold"><span class="lbl">Reden on hold</span>${esc(p.on_hold_reden)}</div>`:''}
       ${p.fase==='nazorg'&&p.adoptie?`<div class="sub-note sub-adoptie"><span class="lbl">Adoptiefase</span>${esc(p.adoptie)}</div>`:''}
@@ -747,6 +776,11 @@ function cardsHtml(arr,edge,showFasePill,showPortChip,showOnHold){
   }).join('');
 }
 
+// Logo van het project, of een vierkantje met de initialen in de kleur van de portefeuille.
+function projectLogo(p){
+  if(p.logo_url)return `<span class="card-logo"><img src="${esc(p.logo_url)}" alt=""></span>`;
+  return `<span class="card-ini" style="background:${portColor(p.portefeuille)}">${esc(initials(p.naam))}</span>`;
+}
 function groupHeader(label,count,color,filled){
   if(filled)return `<div class="group-h filled" style="background:${color};border-color:${color}"><span class="dot" style="background:rgba(255,255,255,.92)"></span>${esc(label)} <span class="count">(${count})</span></div>`;
   return `<div class="group-h" style="border-left-color:${color}"><span class="dot" style="background:${color}"></span>${esc(label)} <span class="count">(${count})</span></div>`;
@@ -1003,9 +1037,35 @@ function openModal(id){
   document.getElementById('f-onhold').checked=!!p.on_hold;
   document.getElementById('f-reden').value=p.on_hold_reden||'';
   document.getElementById('f-deadline').value=p.deadline||'';
+  modalLogo=p.logo_url||'';
+  toonLogoVoorbeeld();
+  document.getElementById('f-logo').value='';
+  document.getElementById('f-logo-melding').textContent='';
   toggleConditional();
   document.getElementById('overlay').classList.add('open');
 }
+let modalLogo='';
+
+function toonLogoVoorbeeld(){
+  const el=document.getElementById('f-logo-voorbeeld');
+  if(!el)return;
+  if(modalLogo){el.innerHTML=`<img src="${esc(modalLogo)}" alt="">`;el.classList.remove('leeg');}
+  else{el.innerHTML='<span>geen logo</span>';el.classList.add('leeg');}
+}
+
+// Het bestand gaat naar de opslagmap 'projectlogos' in Supabase; we bewaren alleen het adres.
+async function uploadLogo(file){
+  const ext=(file.name.split('.').pop()||'png').toLowerCase().replace(/[^a-z0-9]/g,'').slice(0,5)||'png';
+  const pad='project-'+Date.now()+'-'+Math.random().toString(36).slice(2,7)+'.'+ext;
+  const r=await fetch(SUPABASE_URL+'/storage/v1/object/projectlogos/'+pad,{
+    method:'POST',
+    headers:{apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY,'Content-Type':file.type||'application/octet-stream','x-upsert':'true'},
+    body:file
+  });
+  if(!r.ok)throw new Error('Uploaden mislukt ('+r.status+'). Staat de opslagmap projectlogos klaar?');
+  return SUPABASE_URL+'/storage/v1/object/public/projectlogos/'+pad;
+}
+
 function closeModal(){document.getElementById('overlay').classList.remove('open');editId=null;}
 async function saveProject(){
   const naam=document.getElementById('f-naam').value.trim();
@@ -1021,13 +1081,27 @@ async function saveProject(){
     on_hold:onhold,
     on_hold_reden:onhold?document.getElementById('f-reden').value.trim():'',
     deadline:document.getElementById('f-deadline').value.trim(),
-    verantwoordelijke:[...document.querySelectorAll('#f-verant-box input:checked')].map(c=>c.value).join(', ')
+    verantwoordelijke:[...document.querySelectorAll('#f-verant-box input:checked')].map(c=>c.value).join(', '),
+    logo_url:modalLogo||null
   };
   try{
     if(editId)await dbUpdate(editId,data);
     else{data.steps=[];await dbCreate(data);}
     closeModal();await reload();
-  }catch(e){showError(e.message);}
+  }catch(e){
+    // Zolang de kolom logo_url nog niet in de database staat, slaan we de rest gewoon op.
+    if(String(e.message).includes('logo_url')){
+      delete data.logo_url;
+      try{
+        if(editId)await dbUpdate(editId,data);
+        else{data.steps=[];await dbCreate(data);}
+        closeModal();await reload();
+        showError('Opgeslagen, maar het logo nog niet: de kolom logo_url ontbreekt nog in de database.');
+        return;
+      }catch(e2){showError(e2.message);return;}
+    }
+    showError(e.message);
+  }
 }
 async function delProject(id){
   const p=projects.find(x=>x.id===id);
@@ -1139,6 +1213,27 @@ async function showInzage(){
   document.getElementById('saveModal').onclick=saveProject;
   document.getElementById('f-fase').onchange=toggleConditional;
   document.getElementById('f-onhold').onchange=toggleConditional;
+
+  // Logo kiezen, uploaden en weer verwijderen.
+  document.getElementById('f-logo').onchange=async(e)=>{
+    const file=e.target.files&&e.target.files[0];
+    if(!file)return;
+    const melding=document.getElementById('f-logo-melding');
+    if(!file.type.startsWith('image/')){melding.textContent='Kies een afbeelding.';return;}
+    if(file.size>1024*1024){melding.textContent='Het bestand is groter dan 1 MB. Kies een kleinere versie.';return;}
+    melding.textContent='Bezig met uploaden...';
+    try{
+      modalLogo=await uploadLogo(file);
+      toonLogoVoorbeeld();
+      melding.textContent='Klaar. Vergeet niet op te slaan.';
+    }catch(err){melding.textContent=err.message;}
+  };
+  document.getElementById('f-logo-weg').onclick=()=>{
+    modalLogo='';
+    toonLogoVoorbeeld();
+    document.getElementById('f-logo').value='';
+    document.getElementById('f-logo-melding').textContent='';
+  };
   document.getElementById('overlay').onclick=e=>{if(e.target.id==='overlay')closeModal();};
   document.getElementById('wisselBtn').onclick=wissel;
   document.getElementById('inzageBtn').onclick=showInzage;
